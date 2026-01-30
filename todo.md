@@ -20,15 +20,15 @@
   - 测试默认值设置
 
 ### 2. 创建示例脚本
-- [ ] 创建基础使用示例 `examples/basic_usage.py`
+- [x] 创建基础使用示例 `examples/basic_usage.py`
   - 演示如何导入和使用ChatAgent
   - 展示工具调用流程
   - 提供简单命令行示例
-- [ ] 创建高级配置示例 `examples/advanced_config.py`
+- [x] 创建高级配置示例 `examples/advanced_config.py`
   - 展示自定义工具注册
   - 演示不同存储后端配置
   - 提供批量处理示例
-- [ ] 创建集成测试示例 `examples/integration_test.py`
+- [x] 创建集成测试示例 `examples/integration_test.py`
   - 端到端聊天会话测试
   - 历史持久化验证
   - 工具调用验证
@@ -103,5 +103,5 @@
 
 ---
 
-**最后更新**: 2026-01-29
+**最后更新**: 2026-01-30
 **项目状态**: v0.1.0 已实现基本功能，待完善测试和文档

@@ -118,6 +118,27 @@ chat-shell chat --storage memory
 CHAT_SHELL_DEBUG=1 chat-shell chat
 ```
 
+### Example Scripts
+Three comprehensive example scripts are available in the `examples/` directory:
+
+```bash
+# Basic usage patterns
+python examples/basic_usage.py
+
+# Advanced configuration and custom tools
+python examples/advanced_config.py
+
+# End-to-end integration testing
+python examples/integration_test.py
+```
+
+**Script Descriptions**:
+- `basic_usage.py`: Core library usage patterns, agent initialization, streaming vs invoke, calculator tool
+- `advanced_config.py`: Custom tool creation, storage backend comparison, batch processing, configuration
+- `integration_test.py`: Complete test suite with assertions, performance timing, error handling
+
+See `examples/README.md` for detailed documentation and usage instructions.
+
 ## Extension Points
 
 ### Adding New Tools
@@ -174,10 +195,11 @@ Key environment variables (see `.env.example`):
 - JSON file storage for session persistence
 - Thinking process visualization
 - Configuration management
+- Comprehensive example scripts demonstrating library usage patterns
 
 **High Priority Tasks** (from `todo.md`):
 1. Add unit tests for tools, storage, and configuration
-2. Create example scripts in `examples/` directory
+2. ✅ Create example scripts in `examples/` directory (completed - see `examples/README.md`)
 3. Set up CI/CD with GitHub Actions
 4. Enhance documentation
 
@@ -194,6 +216,7 @@ Key environment variables (see `.env.example`):
 3. `chat_shell_101/storage/interfaces.py` - Storage abstraction interfaces
 4. `chat_shell_101/config.py` - Configuration management with Pydantic
 5. `chat_shell_101/cli.py` - User interaction flow and command parsing
+6. `examples/` - Comprehensive usage examples and integration tests
 
 ## Security Considerations
 
