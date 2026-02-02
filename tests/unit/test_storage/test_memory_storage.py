@@ -2,7 +2,7 @@
 Unit tests for MemoryStorage.
 """
 import pytest
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 
 from chat_shell_101.storage.memory_storage import MemoryStorage, MemoryHistoryStorage
@@ -143,8 +143,9 @@ class TestMemoryHistoryStorage:
         num_messages = 1000
 
         # Create many messages
+        base_time = datetime(2024, 1, 1, 12, 0, 0)
         messages = [
-            Message(role="user", content=f"Message {i}", timestamp=datetime(2024, 1, 1, 12, 0, i))
+            Message(role="user", content=f"Message {i}", timestamp=base_time + timedelta(seconds=i))
             for i in range(num_messages)
         ]
 

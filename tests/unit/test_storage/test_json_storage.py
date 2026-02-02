@@ -1,10 +1,11 @@
 """
 Unit tests for JSONStorage.
 """
+import asyncio
 import json
 import pytest
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List
 from unittest.mock import patch, MagicMock
@@ -180,8 +181,9 @@ class TestJSONHistoryStorage:
         num_messages = 100
 
         # Create many messages
+        base_time = datetime(2024, 1, 1, 12, 0, 0)
         messages = [
-            Message(role="user", content=f"Message {i}", timestamp=datetime(2024, 1, 1, 12, 0, i))
+            Message(role="user", content=f"Message {i}", timestamp=base_time + timedelta(seconds=i))
             for i in range(num_messages)
         ]
 
@@ -230,16 +232,18 @@ class TestJSONHistoryStorage:
 
         session_file.write_text(json.dumps(data, indent=2))
 
-        # Should load messages with None timestamps
+        # Should load messages with default timestamps (since missing timestamps get default)
         history = await json_storage.get_history(session_id)
 
         assert len(history) == 2
         assert history[0].role == "user"
         assert history[0].content == "Hello"
-        assert history[0].timestamp is None
+        assert history[0].timestamp is not None
+        assert isinstance(history[0].timestamp, datetime)
         assert history[1].role == "assistant"
         assert history[1].content == "Hi"
-        assert history[1].timestamp is None
+        assert history[1].timestamp is not None
+        assert isinstance(history[1].timestamp, datetime)
 
     @pytest.mark.asyncio
     async def test_file_permission_error_handling(
@@ -247,10 +251,10 @@ class TestJSONHistoryStorage:
     ) -> None:
         """Test handling of file permission errors."""
         session_id = "permission-error-session"
-        session_file = json_storage._get_session_file(session_id)
 
-        # Mock read_text to raise IOError
-        with patch.object(session_file, 'read_text', side_effect=IOError("Permission denied")):
+        # Mock run_in_executor to raise IOError
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, 'run_in_executor', side_effect=IOError("Permission denied")):
             # Should return empty list without raising exception
             history = await json_storage.get_history(session_id)
             assert history == []
@@ -261,10 +265,14 @@ class TestJSONHistoryStorage:
     ) -> None:
         """Test handling of write permission errors."""
         session_id = "write-error-session"
-        session_file = json_storage._get_session_file(session_id)
 
-        # Mock write_text to raise IOError
-        with patch.object(session_file, 'write_text', side_effect=IOError("Permission denied")):
+        # Create a mock file with write_text that raises IOError
+        mock_file = MagicMock()
+        mock_file.write_text.side_effect = IOError("Permission denied")
+        mock_file.exists.return_value = False  # File doesn't exist initially
+
+        # Patch _get_session_file to return our mock
+        with patch.object(json_storage, '_get_session_file', return_value=mock_file):
             # Should not raise exception
             await json_storage.append_messages(session_id, sample_messages)
 
@@ -275,14 +283,16 @@ class TestJSONHistoryStorage:
         """Test handling of delete permission errors."""
         session_id = "delete-error-session"
 
-        # First create a session
+        # First create a session (real file)
         await json_storage.append_messages(session_id, sample_messages)
 
-        session_file = json_storage._get_session_file(session_id)
-        assert session_file.exists()
+        # Create a mock file with unlink that raises IOError
+        mock_file = MagicMock()
+        mock_file.unlink.side_effect = IOError("Permission denied")
+        mock_file.exists.return_value = True
 
-        # Mock unlink to raise IOError
-        with patch.object(session_file, 'unlink', side_effect=IOError("Permission denied")):
+        # Patch _get_session_file to return our mock
+        with patch.object(json_storage, '_get_session_file', return_value=mock_file):
             # Should not raise exception
             await json_storage.clear_history(session_id)
 
@@ -337,7 +347,8 @@ class TestJSONHistoryStorage:
         assert len(history) == 1
         assert history[0].role == "user"
         assert history[0].content == "Hello"
-        assert history[0].timestamp is None
+        assert history[0].timestamp is not None
+        assert isinstance(history[0].timestamp, datetime)
 
 
 class TestJSONStorage:

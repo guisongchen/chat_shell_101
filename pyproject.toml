@@ -16,6 +16,7 @@ dependencies = [
     "langgraph>=0.0.1",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
+    "requests>=2.32.5",
     "rich>=13.0.0",
 ]
 
@@ -36,10 +37,31 @@ target-version = ['py310']
 [tool.isort]
 profile = "black"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--tb=short",
+    "--disable-warnings",
+    "--asyncio-mode=auto",
+]
+markers = [
+    "integration: integration tests",
+    "slow: slow tests",
+    "unit: unit tests",
+    "async: async tests",
+]
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    "pytest-xdist>=3.0.0",
     "black>=23.0.0",
     "isort>=5.12.0",
     "flake8>=6.0.0",

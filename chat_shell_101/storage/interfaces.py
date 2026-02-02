@@ -3,18 +3,18 @@ Storage interfaces for chat history.
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Literal
 from pathlib import Path
 
 
 @dataclass
 class Message:
     """A chat message."""
-    role: str  # "user", "assistant", "system"
+    role: Literal["user", "assistant", "system"]
     content: str
-    timestamp: datetime = None
+    timestamp: datetime = field(default_factory=datetime.now)
 
     def __post_init__(self):
         if self.timestamp is None:

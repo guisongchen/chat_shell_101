@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import AsyncGenerator, Dict, Generator, List
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -40,10 +41,10 @@ def temp_storage_dir() -> Generator[Path, None, None]:
 def sample_messages() -> List[Message]:
     """Create sample messages for testing."""
     return [
-        Message(role="user", content="Hello, world!", timestamp="2024-01-01T00:00:00"),
-        Message(role="assistant", content="Hi there!", timestamp="2024-01-01T00:00:01"),
-        Message(role="user", content="What's 2+2?", timestamp="2024-01-01T00:00:02"),
-        Message(role="assistant", content="4", timestamp="2024-01-01T00:00:03"),
+        Message(role="user", content="Hello, world!", timestamp=datetime(2024, 1, 1, 0, 0, 0)),
+        Message(role="assistant", content="Hi there!", timestamp=datetime(2024, 1, 1, 0, 0, 1)),
+        Message(role="user", content="What's 2+2?", timestamp=datetime(2024, 1, 1, 0, 0, 2)),
+        Message(role="assistant", content="4", timestamp=datetime(2024, 1, 1, 0, 0, 3)),
     ]
 
 
