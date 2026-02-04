@@ -153,7 +153,7 @@ async def test_calculator_tool(result: TestResult) -> None:
     test_cases = [
         ("2 + 2", "4"),
         ("10 * 5", "50"),
-        ("100 / 4", "25"),
+        ("100 / 4", "25.0"),  # Fixed: division returns float
         ("(3 + 4) * 2", "14"),
     ]
 
@@ -166,13 +166,16 @@ async def test_calculator_tool(result: TestResult) -> None:
         # Check for error
         assert_true(not output.error, f"Calculator error: {output.error}")
 
-        # Parse result (calculator returns string like "Result: 4")
+        # Parse result
+        actual = output.result
         if "Result:" in output.result:
-            actual = output.result.split("Result:")[1].strip()
-            assert_equal(actual, expected, f"Calculation failed for {expression}")
+            parts = output.result.split("Result:")
+            assert_true(len(parts) == 2, f"Unexpected result format: {output.result}")
+            actual = parts[1].strip()
         else:
-            # Some versions might return just the number
-            assert_equal(output.result.strip(), expected, f"Calculation failed for {expression}")
+            actual = output.result.strip()
+        
+        assert_equal(actual, expected, f"Calculation failed for {expression}")
 
     result.details["test_cases_passed"] = len(test_cases)
     result.details["tool_works"] = True
