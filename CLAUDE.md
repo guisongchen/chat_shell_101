@@ -10,10 +10,17 @@ Chat Shell 101 is a Python 3.10+ CLI chat tool built on LangGraph/LangChain with
 
 ### Agent System (`chat_shell_101/agent.py`)
 - **ReAct pattern** using LangGraph state machine with agent and tools nodes
-- **Streaming support** for real-time responses with thinking process visualization
+- **True token-level streaming** using `astream()` for real-time LLM responses
+- **Tool call chunk accumulation** during streaming with proper async handling
 - **Tool execution** with error handling and thinking process visualization
 - **State management** through LangGraph's graph execution model
 - **Singleton pattern** via `get_agent()` function for global agent instance
+
+**Streaming Implementation**:
+- Uses `llm_with_tools.astream()` for genuine token-by-token streaming
+- Accumulates `tool_call_chunks` during streaming to reconstruct complete tool calls
+- Yields content tokens immediately as they arrive from the LLM
+- Processes complete tool calls after streaming finishes, then streams follow-up responses
 
 ### Tool System (`chat_shell_101/tools/`)
 - **Abstract base class** (`BaseTool`) defines tool interface with `ToolInput`/`ToolOutput` schemas
@@ -203,18 +210,12 @@ Key environment variables (see `.env.example`):
 - Interactive CLI chat with history persistence
 - Calculator tool with safe AST-based expression evaluation
 - JSON file storage and memory storage backends
+- True token-level streaming with real-time LLM responses
 - Thinking process visualization with streaming
 - Configuration management with environment variables
 - Comprehensive example scripts demonstrating library usage
 - Support for custom API endpoints (DeepSeek compatible)
-
-**High Priority Tasks** (from `todo.md`):
-1. Add unit tests for tools, storage, and configuration
-2. ✅ Create example scripts in `examples/` directory (completed)
-3. Set up CI/CD with GitHub Actions
-4. Enhance documentation
-5. Add web search tool integration
-6. Support more LLM providers (Claude, Gemini)
+- GitHub repository at https://github.com/guisongchen/chat_shell_101
 
 **Architecture Notes**:
 - Uses `uv` for dependency management and `hatchling` as build system
