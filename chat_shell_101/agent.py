@@ -165,7 +165,6 @@ class ChatAgent:
 
         # Accumulate the full response for tool call handling
         full_response = None
-        tool_calls_accumulator = {}
 
         # Stream from LLM
         async for chunk in self.llm_with_tools.astream(lc_messages):
@@ -178,21 +177,6 @@ class ChatAgent:
             # Stream content tokens as they arrive
             if chunk.content:
                 yield {"type": "content", "data": {"text": chunk.content}}
-
-            # Accumulate tool call chunks
-            if chunk.tool_call_chunks:
-                for tc_chunk in chunk.tool_call_chunks:
-                    tc_id = tc_chunk.get("id", "")
-                    if tc_id:
-                        if tc_id not in tool_calls_accumulator:
-                            tool_calls_accumulator[tc_id] = {
-                                "id": tc_id,
-                                "name": tc_chunk.get("name", ""),
-                                "args": "",
-                            }
-                        # Accumulate arguments
-                        if tc_chunk.get("args"):
-                            tool_calls_accumulator[tc_id]["args"] += tc_chunk["args"]
 
         # Handle complete tool calls after streaming finishes
         if full_response and full_response.tool_calls:
