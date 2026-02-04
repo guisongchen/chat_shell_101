@@ -11,6 +11,7 @@ authors = [
 
 dependencies = [
     "click>=8.1.0",
+    "httpx[socks]>=0.28.1",
     "langchain>=0.1.0",
     "langchain-openai>=0.0.1",
     "langgraph>=0.0.1",

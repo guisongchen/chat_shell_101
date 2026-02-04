@@ -24,8 +24,8 @@ def cli():
 @click.option(
     "--model",
     "-m",
-    default="gpt-4",
-    help="OpenAI model to use",
+    default="deepseek-chat",
+    help="llm model to use",
 )
 @click.option(
     "--session",
@@ -42,7 +42,7 @@ def cli():
 @click.option(
     "--temperature",
     "-t",
-    default=0.7,
+    default=1.0,
     type=float,
     help="Sampling temperature (0.0-2.0)",
 )
@@ -51,7 +51,12 @@ def cli():
     is_flag=True,
     help="Show model thinking process",
 )
-def chat(model: str, session: str, storage: str, temperature: float, show_thinking: bool):
+@click.option(
+    "--base-url",
+    default="https://api.deepseek.com",
+    help="OpenAI API base URL (optional, e.g., https://api.deepseek.com)"
+)
+def chat(model: str, session: str, storage: str, temperature: float, show_thinking: bool, base_url: str):
     """Start interactive chat session."""
     asyncio.run(
         chat_interactive(
@@ -60,6 +65,7 @@ def chat(model: str, session: str, storage: str, temperature: float, show_thinki
             storage=storage,
             temperature=temperature,
             show_thinking=show_thinking,
+            base_url=base_url,
         )
     )
 
@@ -70,6 +76,7 @@ async def chat_interactive(
     storage: str,
     temperature: float,
     show_thinking: bool,
+    base_url: str,
 ):
     """Interactive chat main loop."""
     # Update config with CLI options
@@ -77,6 +84,8 @@ async def chat_interactive(
     config.openai.temperature = temperature
     if show_thinking:
         config.show_thinking = show_thinking
+    if base_url:
+        config.openai.base_url = base_url
 
     # Initialize storage
     if storage == "json":
@@ -175,7 +184,7 @@ async def chat_interactive(
 
                     elif event_type == "tool_result":
                         result = data.get("result", "")
-                        print(f"\n{format_tool_result(result)}", end="", flush=True)
+                        print(f"\n{format_tool_result(result)}", end=". ", flush=True)
 
                     elif event_type == "error":
                         error_msg = data.get("message", "Unknown error")
