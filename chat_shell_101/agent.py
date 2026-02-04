@@ -149,7 +149,7 @@ class ChatAgent:
         messages: List[Dict[str, str]],
         show_thinking: bool = False,
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        """Stream agent responses."""
+        """Stream agent responses with token-level streaming."""
         if not self._initialized:
             await self.initialize()
 
@@ -163,81 +163,69 @@ class ChatAgent:
             elif msg["role"] == "assistant":
                 lc_messages.append(AIMessage(content=msg["content"]))
 
-        # Initialize state
-        initial_state = AgentState(messages=lc_messages)
+        # Accumulate the full response for tool call handling
+        full_response = None
+        tool_calls_accumulator = {}
 
-        # Track which tool calls we've already processed
-        processed_tool_calls = set()
+        # Stream from LLM
+        async for chunk in self.llm_with_tools.astream(lc_messages):
+            # Accumulate chunks to build the full message
+            if full_response is None:
+                full_response = chunk
+            else:
+                full_response += chunk
 
-        # Run the graph
-        async for event in self.graph.astream(initial_state, stream_mode="values"):
-            # Get the latest message
-            if "messages" in event and event["messages"]:
-                messages_list = event["messages"]
-                last_message = messages_list[-1]
+            # Stream content tokens as they arrive
+            if chunk.content:
+                yield {"type": "content", "data": {"text": chunk.content}}
 
-                if isinstance(last_message, AIMessage):
-                    # Check if it's a tool call
-                    if last_message.tool_calls:
-                        for tool_call in last_message.tool_calls:
-                            tool_call_id = tool_call["id"]
-
-                            # Skip if we've already processed this tool call
-                            if tool_call_id in processed_tool_calls:
-                                continue
-                            processed_tool_calls.add(tool_call_id)
-
-                            if show_thinking:
-                                yield {
-                                    "type": "thinking",
-                                    "data": {
-                                        "text": f"Calling tool {tool_call['name']} with args: {tool_call['args']}"
-                                    }
-                                }
-                            yield {
-                                "type": "tool_call",
-                                "data": {
-                                    "tool": tool_call["name"],
-                                    "input": tool_call["args"],
-                                }
+            # Accumulate tool call chunks
+            if chunk.tool_call_chunks:
+                for tc_chunk in chunk.tool_call_chunks:
+                    tc_id = tc_chunk.get("id", "")
+                    if tc_id:
+                        if tc_id not in tool_calls_accumulator:
+                            tool_calls_accumulator[tc_id] = {
+                                "id": tc_id,
+                                "name": tc_chunk.get("name", ""),
+                                "args": "",
                             }
+                        # Accumulate arguments
+                        if tc_chunk.get("args"):
+                            tool_calls_accumulator[tc_id]["args"] += tc_chunk["args"]
 
-                            # Find the corresponding ToolMessage in the state
-                            tool_result_found = False
-                            for msg in reversed(messages_list):
-                                if isinstance(msg, ToolMessage) and msg.tool_call_id == tool_call_id:
-                                    yield {
-                                        "type": "tool_result",
-                                        "data": {"result": msg.content}
-                                    }
-                                    tool_result_found = True
-                                    break
+        # Handle complete tool calls after streaming finishes
+        if full_response and full_response.tool_calls:
+            for tool_call in full_response.tool_calls:
+                tool_name = tool_call.get("name", "")
+                tool_args = tool_call.get("args", {})
+                tool_call_id = tool_call.get("id", "")
 
-                            if not tool_result_found:
-                                # Tool hasn't been executed yet, execute it now
-                                try:
-                                    result = await self._execute_tool(
-                                        tool_call["name"], tool_call["args"]
-                                    )
-                                    yield {
-                                        "type": "tool_result",
-                                        "data": {"result": result}
-                                    }
-                                except Exception as e:
-                                    yield {
-                                        "type": "error",
-                                        "data": {"message": f"Tool execution error: {e}"}
-                                    }
-                    else:
-                        # It's a regular response
-                        if last_message.content:
-                            yield {
-                                "type": "content",
-                                "data": {"text": last_message.content}
-                            }
-                elif isinstance(last_message, HumanMessage):
-                    # User message, skip
-                    pass
+                # Skip incomplete tool calls
+                if not tool_name or not tool_call_id:
+                    continue
+
+                if show_thinking:
+                    yield {
+                        "type": "thinking",
+                        "data": {"text": f"Calling tool {tool_name}"}
+                    }
+                yield {"type": "tool_call", "data": {"tool": tool_name, "input": tool_args}}
+
+                try:
+                    result = await self._execute_tool(tool_name, tool_args)
+                    yield {"type": "tool_result", "data": {"result": result}}
+
+                    # Get follow-up response after tool execution
+                    lc_messages.append(full_response)
+                    lc_messages.append(ToolMessage(content=str(result), tool_call_id=tool_call_id))
+
+                    # Stream the follow-up response token by token
+                    async for followup in self.llm_with_tools.astream(lc_messages):
+                        if followup.content:
+                            yield {"type": "content", "data": {"text": followup.content}}
+                except Exception as e:
+                    yield {"type": "error", "data": {"message": str(e)}}
 
     async def invoke(self, messages: List[Dict[str, str]]) -> str:
         """Invoke the agent and return the final response."""
