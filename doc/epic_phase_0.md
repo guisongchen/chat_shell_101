@@ -95,29 +95,29 @@ This phase focuses on building the foundational components required for a workin
 **Goal**: Support HTTP, Package, and CLI deployment modes
 
 ### HTTP Mode
-- [ ] Create FastAPI application structure
-- [ ] Implement POST /v1/response endpoint for chat sessions
-- [ ] Implement GET /v1/response/{subtask_id} for session recovery
-- [ ] Implement DELETE /v1/response/{subtask_id} for session cancellation
-- [ ] Add health check endpoint
-- [ ] Configure Uvicorn server with proper settings
-- [ ] Implement RemoteStorage integration with backend APIs
+- [x] Create FastAPI application structure
+- [x] Implement POST /v1/response endpoint for chat sessions
+- [x] Implement GET /v1/response/{subtask_id} for session recovery
+- [x] Implement DELETE /v1/response/{subtask_id} for session cancellation
+- [x] Add health check endpoint
+- [x] Configure Uvicorn server with proper settings
+- [x] Implement RemoteStorage integration with backend APIs
 
 ### Package Mode
-- [ ] Design ChatInterface abstract interface
-- [ ] Implement direct Python function calls
-- [ ] Support in-process message passing without storage layer
-- [ ] Create package import entry points
-- [ ] Add usage examples and documentation
+- [x] Design ChatInterface abstract interface
+- [x] Implement direct Python function calls
+- [x] Support in-process message passing without storage layer
+- [x] Create package import entry points
+- [x] Add usage examples and documentation
 
 ### CLI Mode
-- [ ] Implement `chat-shell serve` command to start HTTP server
-- [ ] Implement `chat-shell chat` command for interactive sessions
-- [ ] Implement `chat-shell query` command for single queries
-- [ ] Implement `chat-shell history` command for history viewing
-- [ ] Implement `chat-shell config` command for configuration management
-- [ ] Add SQLite local storage (~/.chat_shell/history.db)
-- [ ] Create rich CLI interface with proper formatting
+- [x] Implement `chat-shell serve` command to start HTTP server
+- [x] Implement `chat-shell chat` command for interactive sessions
+- [x] Implement `chat-shell query` command for single queries
+- [x] Implement `chat-shell history` command for history viewing
+- [x] Implement `chat-shell config` command for configuration management
+- [x] Add SQLite local storage (~/.chat_shell/history.db)
+- [x] Create rich CLI interface with proper formatting
 
 ---
 
@@ -141,14 +141,14 @@ This phase focuses on building the foundational components required for a workin
 **Goal**: Build flexible storage system with multiple backends
 
 ### User Stories
-- [ ] Design StorageProvider abstract interface
-- [ ] Implement MemoryStorage for testing
-- [ ] Implement SQLiteStorage for CLI mode
-- [ ] Implement RemoteStorage for HTTP mode with backend integration
-- [ ] Create SessionManager for session lifecycle management
-- [ ] Support message persistence and retrieval
-- [ ] Implement history truncation and limits
-- [ ] Add conversation metadata management
+- [x] Design StorageProvider abstract interface
+- [x] Implement MemoryStorage for testing
+- [x] Implement SQLiteStorage for CLI mode
+- [x] Implement RemoteStorage for HTTP mode with backend integration
+- [x] Create SessionManager for session lifecycle management
+- [x] Support message persistence and retrieval
+- [x] Implement history truncation and limits
+- [x] Add conversation metadata management
 
 ---
 

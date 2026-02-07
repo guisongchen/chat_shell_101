@@ -11,6 +11,7 @@ authors = [
 
 dependencies = [
     "click>=8.1.0",
+    "fastapi>=0.104.0",
     "httpx[socks]>=0.28.1",
     "langchain>=0.1.0",
     "langchain-openai>=0.0.1",
@@ -20,7 +21,9 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "requests>=2.32.5",
     "rich>=13.0.0",
+    "sse-starlette>=1.6.5",
     "tiktoken>=0.5.0",
+    "uvicorn[standard]>=0.24.0",
 ]
 
 [project.optional-dependencies]
