@@ -61,8 +61,7 @@ from .mcp import (
 )
 
 # Registries
-from .registry import ToolRegistry, tool_registry
-from .enhanced_registry import ToolRegistry as EnhancedToolRegistry, get_tool_registry, set_tool_registry
+from .registry import ToolRegistry, tool_registry, get_tool_registry, set_tool_registry
 
 __all__ = [
     # Base
@@ -117,7 +116,6 @@ __all__ = [
 
     # Registries
     "ToolRegistry",
-    "EnhancedToolRegistry",
     "tool_registry",
     "get_tool_registry",
     "set_tool_registry",
