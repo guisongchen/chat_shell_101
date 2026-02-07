@@ -31,19 +31,27 @@ We implemented six core components to address these requirements:
 
 ### 2. MessageCompressor with Multiple Strategies
 
-**Decision:** Implement three compression strategies (SUMMARIZE, TRUNCATE, WINDOW) with a pluggable strategy pattern.
+**Decision:** Implement three compression strategies (SUMMARIZE, TRUNCATE, WINDOW) with a pluggable strategy pattern using rule-based algorithms.
 
 **Rationale:**
-- **SUMMARIZE**: Creates natural language summary of older messages, preserves semantic meaning
+- **SUMMARIZE**: Creates heuristic summary of older messages by extracting key Q&A pairs, preserves semantic meaning without LLM calls
 - **TRUNCATE**: Fastest option, simply drops older messages, deterministic behavior
-- **WINDOW**: Balanced approach, keeps recent messages verbatim, summarizes older ones
+- **WINDOW**: Balanced approach, keeps recent messages verbatim, summarizes older ones using heuristics
 - Strategy enum allows runtime selection based on use case
 - Token counting uses tiktoken with character-based fallback for unknown models
+
+**Important Note on Compression Approach:**
+The current implementation uses **rule-based compression** rather than LLM-based semantic compression:
+- Summarization extracts the last 3 user queries and truncates them to 100 characters each
+- No LLM calls are made during compression (avoids latency and cost)
+- Trade-off: faster execution but less sophisticated summarization
+- Future enhancement: Optional LLM-based semantic compression for higher quality summaries
 
 **Key Design Points:**
 - Compression threshold (0.0-1.0) determines when to trigger compression
 - `keep_recent_messages` preserves N most recent messages uncompressed
 - System messages are always preserved
+- Rule-based approach ensures deterministic, fast compression without additional LLM latency
 
 **Location:** `chat_shell_101/agent/compressor.py`
 
@@ -157,6 +165,7 @@ tests/
 - AsyncSqliteSaver requires optional dependency (`langgraph-checkpoint-sqlite`)
 - Token counting is approximate for non-OpenAI models (uses gpt-4 tokenizer as fallback)
 - Compression strategies may lose information (inherent trade-off)
+- Rule-based compression is less sophisticated than LLM-based semantic compression (quality vs speed trade-off)
 
 ## Implementation Notes
 
