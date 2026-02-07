@@ -2,34 +2,62 @@
 LangGraph ReAct agent for Chat Shell 101.
 """
 
-import asyncio
-from typing import Dict, List, Any, AsyncGenerator, Annotated
-from pydantic import BaseModel
+from typing import Dict, List, Any, AsyncGenerator, Annotated, Optional
+from pydantic import BaseModel, Field
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
+from langgraph.checkpoint.base import BaseCheckpointSaver
 
-from .config import config
-from .tools.registry import tool_registry
-from .utils import format_tool_call, format_tool_result, format_thinking
+from ..config import config as global_config
+from ..tools.registry import tool_registry
+from ..tools.base import PromptModifierTool
+from ..utils import format_tool_call, format_tool_result, format_thinking
+from .config import AgentConfig
+from .compressor import MessageCompressor, CompressionStrategy
+
+
+class ToolIterationLimitError(Exception):
+    """Raised when tool iteration limit is exceeded."""
+    pass
 
 
 class AgentState(BaseModel):
     """State for the agent graph."""
     messages: Annotated[List[Any], add_messages] = []
+    iteration_count: int = Field(default=0, description="Number of tool execution cycles")
+    system_prompt: str = Field(default="You are a helpful AI assistant.", description="Current system prompt")
 
 
 class ChatAgent:
     """Chat agent with ReAct pattern using LangGraph."""
 
-    def __init__(self):
+    def __init__(self, config: Optional[AgentConfig] = None):
+        self.config = config or AgentConfig()
         self.llm = None
         self.tools = []
         self.tools_by_name = {}
         self.graph = None
         self._initialized = False
+        self._checkpointer: Optional[BaseCheckpointSaver] = None
+        self._compressor: Optional[MessageCompressor] = None
+
+        # Initialize compressor if context compression is enabled
+        if self.config.compress_context:
+            self._compressor = MessageCompressor(
+                model=self.config.model or "gpt-4",
+                max_tokens=self.config.max_context_tokens,
+                compression_threshold=self.config.compression_threshold,
+                keep_recent_messages=self.config.keep_recent_messages,
+                strategy=CompressionStrategy.WINDOW,
+            )
+
+    def with_checkpointer(self, checkpointer: BaseCheckpointSaver) -> "ChatAgent":
+        """Set the checkpointer for session persistence."""
+        self._checkpointer = checkpointer
+        return self
 
     async def initialize(self):
         """Initialize the agent."""
@@ -38,23 +66,35 @@ class ChatAgent:
 
         # Initialize LLM
         llm_kwargs = {
-            "model": config.openai.model,
-            "api_key": config.openai.api_key,
-            "temperature": config.openai.temperature,
-            "max_tokens": config.openai.max_tokens,
+            "model": self.config.model or global_config.openai.model,
+            "api_key": global_config.openai.api_key,
+            "temperature": self.config.temperature,
+            "max_tokens": self.config.max_tokens,
             "streaming": True,
         }
-        if config.openai.base_url:
-            llm_kwargs["base_url"] = config.openai.base_url
+        if global_config.openai.base_url:
+            llm_kwargs["base_url"] = global_config.openai.base_url
 
         self.llm = ChatOpenAI(**llm_kwargs)
 
         # Get internal tools from registry (for execution)
-        self.internal_tools = tool_registry.get_all_tools()
+        all_tools = tool_registry.get_all_tools()
+
+        # Filter tools if specific tools are requested
+        if self.config.tools:
+            self.internal_tools = [
+                t for t in all_tools if t.name in self.config.tools
+            ]
+        else:
+            self.internal_tools = all_tools
+
         self.tools_by_name = {tool.name: tool for tool in self.internal_tools}
 
         # Get LangChain tools from registry (for LLM binding)
         self.tools = tool_registry.to_langchain_tools()
+        if self.config.tools:
+            # Filter to only requested tools
+            self.tools = [t for t in self.tools if t.name in self.config.tools]
 
         # Bind tools to LLM
         self.llm_with_tools = self.llm.bind_tools(self.tools)
@@ -63,15 +103,51 @@ class ChatAgent:
         self.graph = self._build_graph()
         self._initialized = True
 
+    def _get_modified_system_prompt(self, state: AgentState) -> str:
+        """Get system prompt with modifications from PromptModifierTool tools."""
+        current_prompt = state.system_prompt
+
+        # Check each tool for PromptModifierTool capability
+        for tool in self.internal_tools:
+            if isinstance(tool, PromptModifierTool):
+                current_prompt = tool.modify_prompt(current_prompt, state)
+
+        return current_prompt
+
     def _build_graph(self):
         """Build the LangGraph state graph."""
 
         # Define nodes
         async def agent_node(state: AgentState):
             """Node that calls the agent."""
+            # Get potentially modified system prompt
+            system_prompt = self._get_modified_system_prompt(state)
+
+            # Prepare messages with system prompt
+            messages = list(state.messages)
+
+            # Replace or add system message
+            has_system = False
+            for i, msg in enumerate(messages):
+                if isinstance(msg, SystemMessage):
+                    messages[i] = SystemMessage(content=system_prompt)
+                    has_system = True
+                    break
+
+            if not has_system and system_prompt:
+                messages.insert(0, SystemMessage(content=system_prompt))
+
+            # Apply context compression if enabled
+            if self._compressor:
+                compression_result = self._compressor.compress_if_needed(messages)
+                messages = compression_result.messages
+
             # Call the LLM
-            response = await self.llm_with_tools.ainvoke(state.messages)
-            return {"messages": [response]}
+            response = await self.llm_with_tools.ainvoke(messages)
+            return {
+                "messages": [response],
+                "system_prompt": system_prompt,
+            }
 
         async def tools_node(state: AgentState):
             """Node that executes tools."""
@@ -102,10 +178,23 @@ class ChatAgent:
                         )
                     )
 
-            return {"messages": tool_messages}
+            # Increment iteration count
+            new_count = state.iteration_count + 1
+
+            return {
+                "messages": tool_messages,
+                "iteration_count": new_count,
+            }
 
         def should_continue(state: AgentState):
             """Determine whether to continue to tools or end."""
+            # Check iteration limit
+            if state.iteration_count >= self.config.max_iterations:
+                raise ToolIterationLimitError(
+                    f"Tool iteration limit ({self.config.max_iterations}) exceeded. "
+                    "The agent may be stuck in an infinite loop."
+                )
+
             last_message = state.messages[-1]
             if last_message.tool_calls:
                 return "tools"
@@ -127,8 +216,11 @@ class ChatAgent:
         )
         workflow.add_edge("tools", "agent")
 
-        # Compile the graph
-        return workflow.compile()
+        # Compile the graph with checkpointer if provided
+        if self._checkpointer:
+            return workflow.compile(checkpointer=self._checkpointer)
+        else:
+            return workflow.compile()
 
     async def _execute_tool(self, tool_name: str, tool_args: Dict[str, Any]) -> Any:
         """Execute a tool by name with the given arguments."""
@@ -148,6 +240,7 @@ class ChatAgent:
         self,
         messages: List[Dict[str, str]],
         show_thinking: bool = False,
+        thread_id: Optional[str] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Stream agent responses with token-level streaming."""
         if not self._initialized:
@@ -162,6 +255,9 @@ class ChatAgent:
                 lc_messages.append(HumanMessage(content=msg["content"]))
             elif msg["role"] == "assistant":
                 lc_messages.append(AIMessage(content=msg["content"]))
+
+        # Prepare config for checkpointing
+        run_config = {"configurable": {"thread_id": thread_id}} if thread_id else None
 
         # Accumulate the full response for tool call handling
         full_response = None
@@ -211,23 +307,16 @@ class ChatAgent:
                 except Exception as e:
                     yield {"type": "error", "data": {"message": str(e)}}
 
-    async def invoke(self, messages: List[Dict[str, str]]) -> str:
+    async def invoke(
+        self,
+        messages: List[Dict[str, str]],
+        thread_id: Optional[str] = None,
+    ) -> str:
         """Invoke the agent and return the final response."""
         full_response = ""
-        async for event in self.stream(messages):
+        async for event in self.stream(messages, thread_id=thread_id):
             if event["type"] == "content":
                 full_response += event["data"]["text"]
         return full_response
 
 
-# Global agent instance
-_agent_instance = None
-
-
-async def get_agent() -> ChatAgent:
-    """Get or create the global agent instance."""
-    global _agent_instance
-    if _agent_instance is None:
-        _agent_instance = ChatAgent()
-        await _agent_instance.initialize()
-    return _agent_instance

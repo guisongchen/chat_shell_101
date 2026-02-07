@@ -6,7 +6,8 @@ import asyncio
 import time
 import click
 
-from .agent import get_agent
+from .agent.agent import ChatAgent
+from .agent.config import AgentConfig
 from .config import config
 from .storage import JSONStorage, MemoryStorage
 from .storage.interfaces import Message
@@ -95,8 +96,13 @@ async def chat_interactive(
 
     await storage_provider.initialize()
 
-    # Initialize agent
-    agent = await get_agent()
+    # Initialize agent with configuration
+    agent_config = AgentConfig(
+        model=model,
+        temperature=temperature,
+    )
+    agent = ChatAgent(agent_config)
+    await agent.initialize()
 
     # Generate session ID if not provided
     session_id = session or f"cli-{int(time.time())}"
